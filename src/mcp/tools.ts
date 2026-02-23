@@ -43,16 +43,47 @@ export const tools: Tool[] = [
     },
     {
         name: "pay_debt",
-        description: "Records a debt payment. Deducts money from an account and reduces the debt balance.",
+        description: "Paga la cuota de una deuda. Si la deuda pertenece a una tarjeta de crédito, incluye el alias en destination_account_identifier.",
         inputSchema: {
             type: "object",
             properties: {
-                source_account_identifier: { type: "string", description: "Account where the money comes from (e.g., 'nomina')" },
-                debt_id: { type: "number", description: "The ID of the debt being paid" },
-                amount: { type: "number", description: "Amount paid" },
+                source_account_identifier: { type: "string", description: "Cuenta de donde sale el dinero (ej. 'nomina')" },
+                debt_identifier: { type: "string", description: "Nombre de la deuda" },
+                destination_account_identifier: { type: "string", description: "OPCIONAL. Alias de la tarjeta de crédito a la que se le libera cupo (ej. 'mastercard')" },
+                amount: { type: "number" },
                 description: { type: "string" }
             },
-            required: ["source_account_identifier", "debt_id", "amount", "description"]
+            required: ["source_account_identifier", "debt_identifier", "amount"]
+        }
+    },
+
+    {
+        name: "create_debt",
+        description: "Registra una compra a cuotas. CREA la deuda para control de cuotas y REGISTRA el gasto en la cuenta/tarjeta al mismo tiempo.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                account_identifier: { type: "string", description: "Alias de la cuenta o tarjeta usada (ej. 'mastercard')" },
+                lender: { type: "string", description: "Qué se compró o a quién se le debe (ej. 'iPhone')" },
+                total_amount: { type: "number", description: "Monto total de la compra (ej. 4500000)" },
+                total_installments: { type: "number", description: "Número de cuotas (por defecto 1)" },
+                description: { type: "string", description: "Detalles adicionales de la compra o el motivo" } // 👈 ¡NUEVO!
+            },
+            required: ["account_identifier", "lender", "total_amount"]
+        }
+    },
+    {
+        name: "run_sql_query",
+        description: "ADVANCED: Executes a raw SQL query. Use this ONLY for complex reports or data retrieval not covered by other tools. DO NOT use for INSERT/UPDATE/DELETE unless explicitly asked.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                query: {
+                    type: "string",
+                    description: "The SQL query to execute (PostgreSQL syntax)"
+                }
+            },
+            required: ["query"]
         }
     }
 

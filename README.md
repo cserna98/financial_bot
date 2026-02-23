@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Servidor MCP - Asistente Financiero Personal
 
 Servidor MCP (Model Context Protocol) para gestión financiera con PostgreSQL, implementado en TypeScript.
@@ -161,7 +160,3 @@ Errores comunes manejados:
 - El servidor usa `StdioServerTransport` para comunicación con el cliente MCP
 - Los logs de sistema se escriben a `stderr` para no interferir con la comunicación MCP
 - Las transacciones usan doble entrada contable: débito en una cuenta, crédito en otra
-=======
-# financial_bot
-MCP para el control de finanzas
->>>>>>> bf45f282534c4ba49fd94de50b5cbd883243cd85
