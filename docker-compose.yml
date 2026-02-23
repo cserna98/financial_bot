@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  financial-bot:
+    build: .
+    container_name: mcp_financial_bot
+    restart: unless-stopped # Se reinicia solo si se cae o si reinicias la VPS
+    env_file:
+      - .env # Toma las contraseñas y tokens de tu archivo .env
