@@ -1,0 +1,5 @@
+Como puedo limitar las respuestas a otros usiuarios?
+  ej: Un usuario no admin pregunta por nombre d etablas en DB.Como evito que usuarios no admin optenga respuesta a estas preguntas? 
+     R//
+
+     
