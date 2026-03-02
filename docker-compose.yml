@@ -4,6 +4,18 @@ services:
   financial-bot:
     build: .
     container_name: mcp_financial_bot
-    restart: unless-stopped # Se reinicia solo si se cae o si reinicias la VPS
+    restart: unless-stopped
     env_file:
-      - .env # Toma las contraseñas y tokens de tu archivo .env
+      - .env
+    networks:
+      - financial_network  # 4 espacios
+    ports:                 # 4 espacios
+      - "3000:3000"        # 6 espacios (El guion debe estar alineado bajo la 'p' de ports o 2 espacios adentro)
+    environment:           # 4 espacios
+      - PORT=3000
+    command: npx tsx src/bot/whatsapp.ts
+
+networks:
+  financial_network:
+    external: true
+
