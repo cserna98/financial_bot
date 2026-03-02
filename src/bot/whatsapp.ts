@@ -1,10 +1,10 @@
-import express from 'express';
+import express from "express";
 
 const app = express();
 app.use(express.json());
 
 const PORT = 3000;
-const VERIFY_TOKEN = "tu_palabra_secreta_2026"; // Inventa una y ponla en Meta
+const VERIFY_TOKEN = "finanzas_bot_secret_2026"; // Inventa una y ponla en Meta
 
 // 1. VALIDACIÓN (Lo que Meta usa para decir "Ok, este servidor es real")
 app.get('/webhook', (req, res) => {
