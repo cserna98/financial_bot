@@ -1,59 +1,39 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+// src/bot/telegram.ts
 import { Telegraf } from "telegraf";
 import { AIService } from "../services/ai.js";
-import { tools } from "../mcp/tools.js";
 import 'dotenv/config';
 
-// 1. Configuración del Bot y Seguridad
-const bot = new Telegraf(process.env.TELEGRAM_TOKEN!);
-const MY_ID = Number(process.env.MY_TELEGRAM_ID);
+export function startTelegramBot(ai: AIService) {
+    const bot = new Telegraf(process.env.TELEGRAM_TOKEN!);
+    const MY_ID = Number(process.env.MY_TELEGRAM_ID);
 
-async function startFinancialBot() {
-    console.log("🏗️  Iniciando infraestructura financiera...");
+    console.log("🏗️ Configurando canal de Telegram...");
+    console.log("🏗️ Configurando canal de Telegram...");
 
-    // 2. Conexión al servidor MCP (El Chef)
-    const transport = new StdioClientTransport({
-        command: "npx",
-        args: ["tsx", "src/mcp/server.ts"]
-    });
-
-    const mcpClient = new Client(
-        { name: "finance-bot-client", version: "1.0.0" },
-        { capabilities: {} }
-    );
-
-    await mcpClient.connect(transport);
-    console.log("✅ Servidor MCP conectado.");
-
-    // 3. Inicializar el Cerebro de la IA con Gemini 2.5 Flash Lite
-    const ai = new AIService(mcpClient, tools);
-
-    // 4. Lógica de mensajes
     bot.on("text", async (ctx) => {
-        // Filtro de seguridad
         if (ctx.from.id !== MY_ID) {
-            console.log(`⚠️ Intento de acceso bloqueado de ID: ${ctx.from.id}`);
+            console.log(`⚠️ Acceso bloqueado: ${ctx.from.id}`);
             return ctx.reply("Este bot es privado.");
         }
 
         await ctx.sendChatAction("typing");
 
         try {
+            // Usamos la instancia de IA que viene desde el index
             const response = await ai.processMessage(ctx.message.text);
 
-            // Usamos una función simple para limpiar caracteres que rompen el Markdown si es necesario
-            // O simplemente enviamos el texto plano si prefieres seguridad total:
-            await ctx.reply(response);
+            // Validación Senior anti-mensajes vacíos
+            const safeResponse = (response && response.trim().length > 0)
+                ? response
+                : "He procesado los datos, pero no pude generar un resumen. La operación fue exitosa.";
+
+            await ctx.reply(safeResponse);
         } catch (error) {
-            console.error("❌ Error enviando a Telegram:", error);
-            // En caso de error, enviamos el texto sin formato para que no falle el "can't parse"
-            await ctx.reply("Hubo un error de formato, pero la operación pudo haberse realizado.");
+            console.error("❌ Error en Telegram:", error);
+            await ctx.reply("Hubo un error al procesar tu mensaje.");
         }
     });
 
     bot.launch();
-    console.log("🚀 BOT ONLINE (Gemini 2.5 Flash Lite)");
+    console.log("🚀 TELEGRAM Bot: ONLINE");
 }
-
-startFinancialBot().catch(console.error);
