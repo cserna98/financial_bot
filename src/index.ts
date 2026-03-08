@@ -1,19 +1,19 @@
+// index.ts
 import 'dotenv/config';
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { AIService } from "./services/ai.js";
 import { tools } from "./mcp/tools.js";
-import { startWhatsAppBot } from "./bot/whatsapp.js"; // Asegúrate de exportar esta función
-// import { startTelegramBot } from "./bot/telegram.js"; // Haz lo mismo con Telegram
+import { startWhatsAppBot } from "./bot/whatsapp.js";
+import { startTelegramBot } from "./bot/telegram.js"; // <--- 1. Importar aquí
 
 async function bootstrap() {
     try {
         console.log("🏗️ Iniciando Orquestador...");
 
-        // 1. CONECTAR AL SERVIDOR MCP (LA DB)
         const transport = new StdioClientTransport({
             command: "npx",
-            args: ["tsx", "src/mcp/server.ts"] // La ruta que confirmamos
+            args: ["tsx", "src/mcp/server.ts"]
         });
 
         const mcpClient = new Client(
@@ -22,21 +22,19 @@ async function bootstrap() {
         );
 
         await mcpClient.connect(transport);
-        console.log("✅ Servidor MCP (Base de Datos) conectado.");
+        console.log("✅ Servidor MCP conectado.");
 
-        // 2. INICIALIZAR EL CEREBRO DE IA
         const ai = new AIService(mcpClient, tools);
         console.log("🧠 Cerebro de IA listo.");
 
-        // 3. ARRANCAR LOS CANALES (WhatsApp y/o Telegram)
-        // Pasamos la misma 'ai' a ambos para que compartan la base de datos
+        // 2. ARRANCAR AMBOS CANALES
         startWhatsAppBot(ai);
         console.log("📱 WhatsApp Channel: ON");
 
-        // startTelegramBot(ai); // Cuando lo tengas listo para recibir 'ai'
+        startTelegramBot(ai); // <--- 3. Activar aquí
 
     } catch (error) {
-        console.error("❌ Fallo crítico en el arranque:", error);
+        console.error("❌ Fallo crítico:", error);
     }
 }
 

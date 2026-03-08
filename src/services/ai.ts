@@ -53,12 +53,11 @@ STRICT CONSTRAINTS:
             let result = await this.chat.sendMessage(userInput);
             let response = result.response;
 
-            // Log para ver qué decidió la IA inicialmente
             console.log("🤔 IA thinking...");
 
-            // LOOP DE HERRAMIENTAS: Mientras la IA quiera usar funciones...
+            // LOOP DE HERRAMIENTAS
             while (response.functionCalls()?.length) {
-                const toolResponses = [];
+                const toolPart = []; // Cambiamos el nombre para claridad (Parts de Gemini)
                 const calls = response.functionCalls()!;
 
                 for (const call of calls) {
@@ -71,7 +70,9 @@ STRICT CONSTRAINTS:
 
                     console.log(`✅ TOOL RESPONSE RECEIVED:`, toolResult.content);
 
-                    toolResponses.push({
+                    // IMPORTANTE: Gemini espera que el resultado de la función 
+                    // se pase como una 'part' específica de FunctionResponse
+                    toolPart.push({
                         functionResponse: {
                             name: call.name,
                             response: { content: toolResult.content }
@@ -79,15 +80,26 @@ STRICT CONSTRAINTS:
                     });
                 }
 
-                // Enviamos los resultados de las herramientas de vuelta a la IA para que redacte la respuesta final
-                result = await this.chat.sendMessage(toolResponses);
+                // Enviamos los resultados de las herramientas de vuelta
+                result = await this.chat.sendMessage(toolPart);
                 response = result.response;
             }
 
-            return response.text();
+            // --- PARCHE SENIOR: VALIDACIÓN DE RESPUESTA FINAL ---
+            let finalOutput = response.text();
+
+            if (!finalOutput || finalOutput.trim() === "") {
+                console.log("⚠️ Respuesta vacía detectada, solicitando narrativa final...");
+                // Si está vacío, le pedimos explícitamente que hable basándose en lo anterior
+                const followUp = await this.chat.sendMessage("Analiza los datos obtenidos y dame una respuesta corta y natural para el usuario.");
+                finalOutput = followUp.response.text();
+            }
+
+            return finalOutput;
+
         } catch (error: any) {
             console.error("❌ AIService Error:", error.message);
-            return "Hubo un error en el motor de IA. Revisa la consola.";
+            return "Hubo un error en el motor de IA. Por favor, intenta de nuevo en un momento.";
         }
     }
 }
