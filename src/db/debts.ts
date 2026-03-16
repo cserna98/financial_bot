@@ -2,7 +2,7 @@ import { pool } from '../config/database.js';
 
 export interface Debt {
   id: number;
-  account_id?: number; // 👈 El enlace a la tarjeta de crédito
+  account_id?: number | null; // 👈 El enlace a la tarjeta de crédito
   lender: string;
   type: string;
   total_amount: number;
@@ -11,6 +11,7 @@ export interface Debt {
   total_installments: number;
   paid_installments: number;
   next_payment_date: Date;
+  event_id?: number | null; // 👈 Enlace al evento
 }
 
 export const debtRepository = {
@@ -39,11 +40,11 @@ export const debtRepository = {
       const res = await client.query(
         `INSERT INTO debts (
                     account_id, lender, type, total_amount, remaining_amount, 
-                    interest_rate, total_installments, next_payment_date
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+                    interest_rate, total_installments, next_payment_date, event_id
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
         [
-          debt.account_id, debt.lender, debt.type, debt.total_amount, debt.remaining_amount,
-          debt.interest_rate, debt.total_installments, debt.next_payment_date
+          debt.account_id ?? null, debt.lender, debt.type, debt.total_amount, debt.remaining_amount,
+          debt.interest_rate, debt.total_installments, debt.next_payment_date, debt.event_id ?? null
         ]
       );
       return res.rows[0] as Debt;

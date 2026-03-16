@@ -46,6 +46,9 @@ PROACTIVE MULTI-ACCOUNT LOGIC:
   WHERE t.amount < 0 AND t.transaction_date >= [TARGET_DATE]
   ORDER BY t.transaction_date DESC;
 
+EVENT TRANSACTIONS:
+- When a user asks to register an expense or income FOR AN EVENT (e.g. "para el evento Asado"), you MUST use the \`event_name\` parameter in the \`register_transaction\` tool. DO NOT just put the event name in the \`description\` field.
+
 OUTPUT FORMATTING:
 - Format currency with bold markers and thousand separators: **$200.000**.
 - If no data is found, explain it clearly in the user's language.`
