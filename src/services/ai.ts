@@ -64,50 +64,73 @@ TOOL EXECUTION PROTOCOL:
         try {
             let result = await this.chat.sendMessage(userInput);
             let response = result.response;
+            let finalOutput = "";
 
             console.log("🤔 IA thinking...");
 
-            // LOOP DE HERRAMIENTAS
-            while (response.functionCalls()?.length) {
-                const toolPart = []; // Cambiamos el nombre para claridad (Parts de Gemini)
-                const calls = response.functionCalls()!;
+            let loopCount = 0;
+            // LOOP DE HERRAMIENTAS Y VALIDACIÓN (Failsafe 15 iteraciones)
+            while (loopCount < 15) {
+                loopCount++;
 
-                for (const call of calls) {
-                    console.log(`📡 CALLING TOOL: ${call.name} with args:`, call.args);
+                if (response.functionCalls()?.length) {
+                    const toolPart = [];
+                    const calls = response.functionCalls()!;
 
-                    const toolResult = await this.mcpClient.callTool({
-                        name: call.name,
-                        arguments: call.args as any
-                    });
+                    for (const call of calls) {
+                        console.log(`📡 CALLING TOOL: ${call.name} with args:`, call.args);
 
-                    console.log(`✅ TOOL RESPONSE RECEIVED:`, toolResult.content);
+                        try {
+                            const toolResult = await this.mcpClient.callTool({
+                                name: call.name,
+                                arguments: call.args as any
+                            });
 
-                    // IMPORTANTE: Gemini espera que el resultado de la función 
-                    // se pase como una 'part' específica de FunctionResponse
-                    toolPart.push({
-                        functionResponse: {
-                            name: call.name,
-                            response: { content: toolResult.content }
+                            console.log(`✅ TOOL RESPONSE RECEIVED:`, toolResult.content);
+
+                            toolPart.push({
+                                functionResponse: {
+                                    name: call.name,
+                                    response: { content: toolResult.content }
+                                }
+                            });
+                        } catch (err: any) {
+                            console.error(`❌ Tool execution failed:`, err.message);
+                            toolPart.push({
+                                functionResponse: {
+                                    name: call.name,
+                                    response: { error: err.message }
+                                }
+                            });
                         }
-                    });
+                    }
+
+                    // Enviamos los resultados de las herramientas de vuelta
+                    result = await this.chat.sendMessage(toolPart);
+                    response = result.response;
+                    continue; // Volvemos a evaluar la nueva respuesta
                 }
 
-                // Enviamos los resultados de las herramientas de vuelta
-                result = await this.chat.sendMessage(toolPart);
-                response = result.response;
+                // Si no hay llamadas a funciones, intentamos sacar el texto
+                try {
+                    finalOutput = response.text();
+                } catch (e) {
+                    finalOutput = "";
+                }
+
+                // --- PARCHE SENIOR: VALIDACIÓN DE RESPUESTA FINAL DENTRO DEL LOOP ---
+                if (!finalOutput || finalOutput.trim() === "") {
+                    console.log("⚠️ Respuesta vacía detectada, solicitando narrativa final...");
+                    result = await this.chat.sendMessage("Analiza los datos obtenidos y dame una respuesta corta y natural para el usuario. No ejecutes más herramientas salvo que sea estrictamente necesario para responder.");
+                    response = result.response;
+                    continue; // Se repite el ciclo por si acaso la IA decide llamar otra herramienta
+                }
+
+                // Si llegamos aquí, tenemos texto válido y cero functionCalls
+                break;
             }
 
-            // --- PARCHE SENIOR: VALIDACIÓN DE RESPUESTA FINAL ---
-            let finalOutput = response.text();
-
-            if (!finalOutput || finalOutput.trim() === "") {
-                console.log("⚠️ Respuesta vacía detectada, solicitando narrativa final...");
-                // Si está vacío, le pedimos explícitamente que hable basándose en lo anterior
-                const followUp = await this.chat.sendMessage("Analiza los datos obtenidos y dame una respuesta corta y natural para el usuario.");
-                finalOutput = followUp.response.text();
-            }
-
-            return finalOutput;
+            return finalOutput || "He procesado tu solicitud, pero no pude generar un resumen narrativo.";
 
         } catch (error: any) {
             console.error("❌ AIService Error:", error.message);
