@@ -51,7 +51,10 @@ EVENT TRANSACTIONS:
 
 OUTPUT FORMATTING:
 - Format currency with bold markers and thousand separators: **$200.000**.
-- If no data is found, explain it clearly in the user's language.`
+- If no data is found, explain it clearly in the user's language.
+
+TOOL EXECUTION PROTOCOL:
+- When you execute a tool and receive its results, you MUST ALWAYS generate a final natural language response summarizing or explaining the result to the user. DO NOT stop generating text after receiving the tool's response.`
         });
 
         this.chat = this.model.startChat();
