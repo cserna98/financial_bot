@@ -51,5 +51,21 @@ export const debtRepository = {
     } finally {
       client.release();
     }
+  },
+
+  async update(id: number, debt: Partial<Debt>) {
+    const fields = Object.keys(debt).filter(k => k !== 'id');
+    const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
+    const values = fields.map(f => (debt as any)[f]);
+
+    const res = await pool.query(
+      `UPDATE debts SET ${setClause} WHERE id = $1 RETURNING *`,
+      [id, ...values]
+    );
+    return res.rows[0] as Debt;
+  },
+
+  async delete(id: number) {
+    await pool.query('DELETE FROM debts WHERE id = $1', [id]);
   }
 };

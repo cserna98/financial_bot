@@ -35,6 +35,10 @@ export const debtTools: Tool[] = [
                 event_name: {
                     type: "string",
                     description: "OPCIONAL. Nombre del evento al que pertenece esta deuda (ej. 'Viaje Medellín')"
+                },
+                affect_balance: {
+                    type: "boolean",
+                    description: "SI se marca true, se creará un gasto en la cuenta que descuenta el dinero de inmediato. Úsalo solo para compras nuevas. Por defecto es FALSE."
                 }
             },
             required: ["lender", "total_amount"]
@@ -62,6 +66,38 @@ export const debtTools: Tool[] = [
                 description: { type: "string" }
             },
             required: ["source_account_identifier", "debt_identifier", "amount"]
+        }
+    },
+    {
+        name: "update_debt",
+        description: "Actualiza los valores de una deuda existente (monto total, monto restante, etc.). Úsalo para corregir errores o typos sin generar transacciones bancarias.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                debt_identifier: {
+                    type: "string",
+                    description: "Nombre o ID de la deuda a actualizar."
+                },
+                total_amount: { type: "number" },
+                remaining_amount: { type: "number" },
+                lender: { type: "string" },
+                description: { type: "string" }
+            },
+            required: ["debt_identifier"]
+        }
+    },
+    {
+        name: "delete_debt",
+        description: "Elimina una deuda por completo de la base de datos.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                debt_identifier: {
+                    type: "string",
+                    description: "Nombre o ID de la deuda a eliminar."
+                }
+            },
+            required: ["debt_identifier"]
         }
     }
 ];

@@ -19,77 +19,111 @@ export const transactionRepository = {
         try {
             await client.query('BEGIN');
 
-            // Verificamos que los datos no sean null/undefined antes de SQL
-            if (!accountId) throw new Error("El accountId es inválido o indefinido");
-            if (amount === undefined || amount === null) throw new Error("El monto es inválido");
-
             const res = await client.query(
                 'INSERT INTO transactions (account_id, amount, description, category) VALUES ($1, $2, $3, $4) RETURNING *',
                 [accountId, amount, description, category]
             );
 
-            // Actualizamos saldo
-            await client.query('UPDATE accounts SET balance = balance + $1 WHERE id = $2', [amount, accountId]);
-
             await client.query('COMMIT');
-            console.log("✅ Transacción guardada en DB:", res.rows[0]);
-            return res.rows[0] as Transaction;
-
-        } catch (e: any) {
+            return res.rows[0];
+        } catch (error) {
             await client.query('ROLLBACK');
-            // ESTO ES CLAVE: Imprimir el error real en la terminal
-            console.error("❌ ERROR CRÍTICO SQL (create):", JSON.stringify(e, null, 2));
-            // Lanzamos un error con mensaje claro para que el bot lo lea
-            throw new Error(e.message || "Error desconocido en base de datos");
+            throw error;
         } finally {
             client.release();
         }
     },
 
-    // 2. Obtener historial reciente
-    async getRecentByAccount(accountId: number, limit = 5) {
-        try {
-            const res = await pool.query(
-                'SELECT * FROM transactions WHERE account_id = $1 ORDER BY transaction_date DESC LIMIT $2',
-                [accountId, limit]
-            );
-            return res.rows as Transaction[];
-        } catch (error: any) {
-            console.error("❌ Error obteniendo historial:", error);
-            throw new Error(error.message);
-        }
+    // 2. Obtener movimientos recientes por cuenta
+    async getRecentByAccount(accountId: number, limit: number = 10) {
+        const res = await pool.query(
+            'SELECT * FROM transactions WHERE account_id = $1 ORDER BY transaction_date DESC LIMIT $2',
+            [accountId, limit]
+        );
+        return res.rows;
     },
 
-    // 3. Pagar Deuda (Afecta cuenta y tabla de deudas)
-    async payDebt(accountId: number, debtId: number, amount: number, description: string) {
-        console.log("💸 Iniciando pago de deuda:", { accountId, debtId, amount });
+    // 3. Registrar pago de deuda (afecta transacción y saldo)
+    async payDebt(accountId: number, amount: number, debtId: number, description: string) {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
 
-            // Resta de la cuenta
-            await client.query('UPDATE accounts SET balance = balance - $1 WHERE id = $2', [amount, accountId]);
+            // Insertar la transacción
+            const transRes = await client.query(
+                'INSERT INTO transactions (account_id, amount, description, category) VALUES ($1, $2, $3, $4) RETURNING id',
+                [accountId, -amount, description, 'pago_deuda']
+            );
 
-            // Resta de la deuda
+            // Actualizar la deuda vinculada a debtId
             await client.query(
-                'UPDATE debts SET remaining_amount = remaining_amount - $1, paid_installments = paid_installments + 1 WHERE id = $2',
+                `UPDATE debts SET remaining_amount = remaining_amount - $1, 
+                paid_installments = paid_installments + 1 
+                WHERE id = $2`,
                 [amount, debtId]
             );
 
-            // Registra en transacciones
-            const res = await client.query(
-                'INSERT INTO transactions (account_id, amount, description, category) VALUES ($1, $2, $3, $4) RETURNING *',
-                [accountId, -amount, `PAGO DEUDA: ${description}`, 'debt_payment']
-            );
-
             await client.query('COMMIT');
-            return res.rows[0] as Transaction;
-        } catch (e: any) {
+            return transRes.rows[0];
+        } catch (error) {
             await client.query('ROLLBACK');
-            console.error("❌ ERROR CRÍTICO SQL (payDebt):", e);
-            throw new Error(e.message || "Error al procesar pago de deuda");
+            throw error;
         } finally {
             client.release();
         }
+    },
+
+    // 4. Obtener transacciones con filtros (Fecha, Cuenta)
+    async getFiltered(options: { accountId?: number; startDate?: string; endDate?: string; limit?: number }) {
+        const { accountId, startDate, endDate, limit = 20 } = options;
+
+        let query = `
+            SELECT t.*, a.name as account_name, a.alias as account_alias
+            FROM transactions t
+            JOIN accounts a ON t.account_id = a.id
+            WHERE 1=1
+        `;
+        const params: any[] = [];
+
+        if (accountId) {
+            params.push(accountId);
+            query += ` AND t.account_id = $${params.length}`;
+        }
+
+        // --- SOLUCIÓN V15 DEFINITIVA: Sincronización Bogota -> UTC ---
+        // Los registros se guardan como Bogota local en un 'timestamp without time zone'.
+        // Para que coincidan con el JSON del Bot (UTC), forzamos el shift Bogotá -> UTC.
+        const TZ_SYNC = "(t.transaction_date AT TIME ZONE 'America/Bogota' AT TIME ZONE 'UTC')";
+
+        if (startDate && endDate && startDate === endDate) {
+            params.push(startDate);
+            query += ` AND TO_CHAR(${TZ_SYNC}, 'YYYY-MM-DD') = $${params.length}`;
+        } else {
+            if (startDate) {
+                params.push(startDate);
+                query += ` AND TO_CHAR(${TZ_SYNC}, 'YYYY-MM-DD') >= $${params.length}`;
+            }
+
+            if (endDate) {
+                params.push(endDate);
+                query += ` AND TO_CHAR(${TZ_SYNC}, 'YYYY-MM-DD') <= $${params.length}`;
+            }
+        }
+
+        query += ` ORDER BY t.transaction_date DESC LIMIT $${params.length + 1}`;
+        params.push(limit);
+
+        console.error(`🔍 [V15-DEFINITIVE] SQL: ${query}`);
+        console.error(`🔍 [V15-DEFINITIVE] Params: ${JSON.stringify(params)}`);
+
+        try {
+            const res = await pool.query(query, params);
+            console.error(`✅ [V15-DEFINITIVE] Filas encontradas: ${res.rows.length}`);
+            return res.rows;
+        } catch (error: any) {
+            console.error("❌ Error en getFiltered [V15]:", error);
+            throw new Error(error.message);
+        }
     }
+    
 };

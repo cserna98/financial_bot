@@ -14,13 +14,14 @@ export const debtHandlers: Record<string, HandlerFn> = {
     },
 
     async create_debt(args) {
-        const { account_identifier, lender, total_amount, total_installments = 1, description, event_name } = args as {
+        const { account_identifier, lender, total_amount, total_installments = 1, description, event_name, affect_balance = false } = args as {
             account_identifier?: string;
             lender: string;
             total_amount: number;
             total_installments?: number;
             description?: string;
             event_name?: string;
+            affect_balance?: boolean;
         };
 
         let account = null;
@@ -30,6 +31,14 @@ export const debtHandlers: Record<string, HandlerFn> = {
             if (!account) {
                 accountWarning = ` (Nota: La cuenta '${account_identifier}' no se encontró, así que la deuda se registró sin asociarse a ninguna cuenta).`;
             }
+        }
+
+        // --- DUPLICATE GUARD ---
+        const existing = await debtRepository.findByLender(lender);
+        if (existing && Math.abs(Number(existing.total_amount) - total_amount) < 1) {
+            return {
+                content: [{ type: "text", text: `⚠️ La deuda con '${lender}' por $${total_amount} ya está registrada en el sistema. No se ha creado un duplicado.` }]
+            };
         }
 
         let eventId: number | null = null;
@@ -59,7 +68,7 @@ export const debtHandlers: Record<string, HandlerFn> = {
             event_id: eventId
         });
 
-        // 2. Registramos el gasto SOLAMENTE si se usó una cuenta
+        // 2. Registramos el gasto SOLAMENTE si se usó una cuenta Y se pidió explícitamente afectar el saldo
         let finalDesc = description
             ? `Compra a cuotas: ${lender} - ${description}`
             : `Compra a cuotas: ${lender}`;
@@ -68,14 +77,18 @@ export const debtHandlers: Record<string, HandlerFn> = {
             finalDesc = `${finalDesc} [event:${eventId}]`;
         }
 
-        if (account) {
+        if (account && affect_balance) {
             await transactionRepository.create(account.id, -Math.abs(total_amount), finalDesc, "credit_purchase");
             return {
-                content: [{ type: "text", text: `✅ Deuda con '${lender}' registrada en '${account.name}' en ${total_installments} cuota(s)${eventId ? ` (asociada al evento ${event_name})` : ''}.` }]
+                content: [{ type: "text", text: `✅ Deuda con '${lender}' registrada en '${account.name}' y saldo actualizado (se creó transacción de gasto).` }]
+            };
+        } else if (account) {
+            return {
+                content: [{ type: "text", text: `✅ Deuda con '${lender}' registrada y vinculada a '${account.name}'. NO se afectó el saldo de la cuenta (uso informativo).` }]
             };
         } else {
             return {
-                content: [{ type: "text", text: `✅ Deuda personal con '${lender}' registrada en ${total_installments} cuota(s)${eventId ? ` (asociada al evento ${event_name})` : ''}. No se afectó el saldo de ninguna cuenta.${accountWarning}` }]
+                content: [{ type: "text", text: `✅ Deuda personal con '${lender}' registrada en ${total_installments} cuota(s). No se afectó ninguna cuenta.${accountWarning}` }]
             };
         }
     },
@@ -129,6 +142,46 @@ export const debtHandlers: Record<string, HandlerFn> = {
                 type: "text",
                 text: `✅ Pago de $${amount} aplicado a la deuda '${debt.lender}'. Saldo actualizado correctamente en tus cuentas.`
             }]
+        };
+    },
+
+    async update_debt(args) {
+        const { debt_identifier, ...updates } = args as { debt_identifier: string } & any;
+        
+        let debt;
+        if (!isNaN(Number(debt_identifier))) {
+            debt = await debtRepository.getById(Number(debt_identifier));
+        } else {
+            debt = await debtRepository.findByLender(debt_identifier);
+        }
+
+        if (!debt) {
+            throw new Error(`No se encontró la deuda '${debt_identifier}'.`);
+        }
+
+        const updated = await debtRepository.update(debt.id, updates);
+        return {
+            content: [{ type: "text", text: `✅ Deuda '${updated.lender}' actualizada correctamente.` }]
+        };
+    },
+
+    async delete_debt(args) {
+        const { debt_identifier } = args as { debt_identifier: string };
+        
+        let debt;
+        if (!isNaN(Number(debt_identifier))) {
+            debt = await debtRepository.getById(Number(debt_identifier));
+        } else {
+            debt = await debtRepository.findByLender(debt_identifier);
+        }
+
+        if (!debt) {
+            throw new Error(`No se encontró la deuda '${debt_identifier}'.`);
+        }
+
+        await debtRepository.delete(debt.id);
+        return {
+            content: [{ type: "text", text: `✅ Deuda '${debt.lender}' eliminada correctamente.` }]
         };
     }
 };
