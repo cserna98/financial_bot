@@ -66,5 +66,28 @@ export const accountRepository = {
       [newBalance, id]
     );
     return res.rows[0] as Account;
+  },
+
+  // 5. Actualizar cuenta completa
+  async update(id: number, updates: Partial<Account>) {
+    const fields = Object.keys(updates).filter(k => k !== 'id');
+    if (fields.length === 0) {
+      const res = await pool.query('SELECT * FROM accounts WHERE id = $1', [id]);
+      return res.rows[0] as Account;
+    }
+    
+    const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
+    const values = fields.map(f => (updates as any)[f]);
+
+    const res = await pool.query(
+      `UPDATE accounts SET ${setClause} WHERE id = $1 RETURNING *`,
+      [id, ...values]
+    );
+    return res.rows[0] as Account;
+  },
+
+  // 6. Eliminar cuenta
+  async delete(id: number) {
+    await pool.query('DELETE FROM accounts WHERE id = $1', [id]);
   }
 };

@@ -31,5 +31,33 @@ export const eventTools: Tool[] = [
             },
             required: ["event_id"]
         }
+    },
+    {
+        name: "update_event",
+        description: "Updates an existing event's details (name, budget, dates, active status).",
+        inputSchema: {
+            type: "object",
+            properties: {
+                event_id: { type: "number", description: "ID of the event to update" },
+                name: { type: "string" },
+                description: { type: "string" },
+                total_budget: { type: "number" },
+                start_date: { type: "string", description: "ISO format (YYYY-MM-DD)" },
+                end_date: { type: "string", description: "ISO format (YYYY-MM-DD)" },
+                is_active: { type: "boolean" }
+            },
+            required: ["event_id"]
+        }
+    },
+    {
+        name: "delete_event",
+        description: "Permanently deletes an event from the database.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                event_id: { type: "number", description: "ID of the event to delete" }
+            },
+            required: ["event_id"]
+        }
     }
 ];

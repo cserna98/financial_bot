@@ -34,5 +34,32 @@ export const accountTools: Tool[] = [
             },
             required: ["account_identifier"]
         }
+    },
+    {
+        name: "update_account",
+        description: "Updates an existing financial account's details (name, type, balance, alias, etc.).",
+        inputSchema: {
+            type: "object",
+            properties: {
+                account_identifier: { type: "string", description: "Current alias, name, or account number" },
+                name: { type: "string" },
+                type: { type: "string", enum: ["savings", "cash", "credit_card"] },
+                balance: { type: "number" },
+                alias: { type: "string" },
+                account_number: { type: "string" }
+            },
+            required: ["account_identifier"]
+        }
+    },
+    {
+        name: "delete_account",
+        description: "Permanently deletes a financial account from the system.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                account_identifier: { type: "string", description: "Alias, name, or account number of the account to delete" }
+            },
+            required: ["account_identifier"]
+        }
     }
 ];

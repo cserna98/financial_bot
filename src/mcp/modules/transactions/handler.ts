@@ -78,5 +78,71 @@ export const transactionHandlers: Record<string, HandlerFn> = {
                 text: `📋 Últimas ${transactions.length} transacciones de '${account.name}':\n${JSON.stringify(transactions, null, 2)}`
             }]
         };
+    },
+
+    async get_transactions(args) {
+        const { account_identifier, start_date, end_date, limit = 20 } = args as {
+            account_identifier?: string;
+            start_date?: string;
+            end_date?: string;
+            limit?: number;
+        };
+
+        let accountId: number | undefined;
+        let accountName = "todas las cuentas";
+
+        if (account_identifier) {
+            const account = await accountRepository.findByIdentifier(account_identifier);
+            if (account) {
+                accountId = account.id;
+                accountName = `'${account.name}'`;
+            } else {
+                throw new Error(`La cuenta '${account_identifier}' no existe.`);
+            }
+        }
+
+        try {
+            console.error(`📡 [HANDLER] Llamando getFiltered con accountId=${accountId}, start=${start_date}, end=${end_date}`);
+            const transactions = await transactionRepository.getFiltered({
+                accountId,
+                startDate: start_date,
+                endDate: end_date,
+                limit
+            });
+            console.error(`✅ [HANDLER] Resultados obtenidos: ${transactions?.length || 0}`);
+
+            return {
+                content: [{
+                    type: "text",
+                    text: `📋 Movimientos en ${accountName}${start_date ? ` desde ${start_date}` : ""}${end_date ? ` hasta ${end_date}` : ""}:\n${JSON.stringify(transactions, null, 2)}`
+                }]
+            };
+        } catch (error: any) {
+            console.error("❌ Error en get_transactions handler:", error);
+            const errorMessage = error.message || JSON.stringify(error) || "Error desconocido en repositorio";
+             return {
+                content: [{ type: "text", text: `❌ Error al consultar transacciones: ${errorMessage}` }],
+                isError: true
+            };
+        }
+    },
+
+    async update_transaction(args) {
+        const { transaction_id, ...updates } = args as { transaction_id: number } & any;
+        const updated = await transactionRepository.update(transaction_id, updates);
+        if (!updated) {
+            throw new Error(`Transacción con ID ${transaction_id} no encontrada.`);
+        }
+        return {
+            content: [{ type: "text", text: `✅ Transacción ${transaction_id} actualizada correctamente.` }]
+        };
+    },
+
+    async delete_transaction(args) {
+        const { transaction_id } = args as { transaction_id: number };
+        await transactionRepository.delete(transaction_id);
+        return {
+            content: [{ type: "text", text: `✅ Transacción ${transaction_id} eliminada correctamente.` }]
+        };
     }
-};
+}

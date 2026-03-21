@@ -124,6 +124,28 @@ export const transactionRepository = {
             console.error("❌ Error en getFiltered [V15]:", error);
             throw new Error(error.message);
         }
+    },
+
+    // 5. Actualizar transacción
+    async update(id: number, updates: Partial<Transaction>) {
+        const fields = Object.keys(updates).filter(k => k !== 'id');
+        if (fields.length === 0) {
+            const res = await pool.query('SELECT * FROM transactions WHERE id = $1', [id]);
+            return res.rows[0];
+        }
+
+        const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
+        const values = fields.map(f => (updates as any)[f]);
+
+        const res = await pool.query(
+            `UPDATE transactions SET ${setClause} WHERE id = $1 RETURNING *`,
+            [id, ...values]
+        );
+        return res.rows[0];
+    },
+
+    // 6. Eliminar transacción
+    async delete(id: number) {
+        await pool.query('DELETE FROM transactions WHERE id = $1', [id]);
     }
-    
 };

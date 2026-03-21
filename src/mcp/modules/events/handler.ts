@@ -1,4 +1,5 @@
 import { pool } from "../../../config/database.js";
+import { eventRepository } from "../../../db/events.js";
 
 type HandlerFn = (args: Record<string, unknown>) => Promise<{ content: { type: string; text: string }[]; isError?: boolean }>;
 
@@ -13,12 +14,14 @@ export const eventHandlers: Record<string, HandlerFn> = {
             end_date?: string;
         };
 
-        const res = await pool.query(
-            `INSERT INTO events (name, description, total_budget, start_date, end_date, is_active)
-             VALUES ($1, $2, $3, $4, $5, true) RETURNING *`,
-            [name, description ?? null, total_budget ?? null, start_date ?? null, end_date ?? null]
-        );
-        const event = res.rows[0];
+        const event = await eventRepository.create({
+            name,
+            description,
+            total_budget,
+            start_date,
+            end_date
+        });
+
         const parts = [`✅ Evento '${event.name}' creado (ID: ${event.id})`];
         if (total_budget) parts.push(`con presupuesto de $${Number(total_budget).toLocaleString("es-CO")}`);
         if (start_date) parts.push(`desde ${start_date}${end_date ? ` hasta ${end_date}` : ""}`);
@@ -27,20 +30,18 @@ export const eventHandlers: Record<string, HandlerFn> = {
     },
 
     async list_events(_args) {
-        const res = await pool.query(`SELECT * FROM events ORDER BY id DESC`);
+        const events = await eventRepository.getAll();
         return {
-            content: [{ type: "text", text: JSON.stringify(res.rows, null, 2) }]
+            content: [{ type: "text", text: JSON.stringify(events, null, 2) }]
         };
     },
 
     async get_event_summary(args) {
         const { event_id } = args as { event_id: number };
-
-        const eventRes = await pool.query(`SELECT * FROM events WHERE id = $1`, [event_id]);
-        if (!eventRes.rows.length) {
+        const event = await eventRepository.getById(event_id);
+        if (!event) {
             throw new Error(`Evento con ID ${event_id} no encontrado.`);
         }
-        const event = eventRes.rows[0];
 
         // Sumar transacciones etiquetadas con este event_id en la categoría
         const spendRes = await pool.query(
@@ -50,7 +51,7 @@ export const eventHandlers: Record<string, HandlerFn> = {
             [`%[event:${event_id}]%`]
         );
         const totalSpent = parseFloat(spendRes.rows[0].total_spent);
-        const budget = event.total_budget ? parseFloat(event.total_budget) : null;
+        const budget = event.total_budget ? parseFloat(event.total_budget as unknown as string) : null;
         const remaining = budget !== null ? budget - totalSpent : null;
 
         const lines = [
@@ -64,5 +65,24 @@ export const eventHandlers: Record<string, HandlerFn> = {
         ].filter(Boolean);
 
         return { content: [{ type: "text", text: lines.join("\n") }] };
+    },
+
+    async update_event(args) {
+        const { event_id, ...updates } = args as { event_id: number } & any;
+        const updated = await eventRepository.update(event_id, updates);
+        if (!updated) {
+            throw new Error(`Evento con ID ${event_id} no encontrado.`);
+        }
+        return {
+            content: [{ type: "text", text: `✅ Evento '${updated.name}' actualizado correctamente.` }]
+        };
+    },
+
+    async delete_event(args) {
+        const { event_id } = args as { event_id: number };
+        await eventRepository.delete(event_id);
+        return {
+            content: [{ type: "text", text: `✅ Evento con ID ${event_id} eliminado correctamente.` }]
+        };
     }
 };

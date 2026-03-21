@@ -33,5 +33,29 @@ export const accountHandlers: Record<string, HandlerFn> = {
                 text: `💰 ${account.name} (${account.alias ?? account.account_number}): $${account.balance.toLocaleString("es-CO")}`
             }]
         };
+    },
+
+    async update_account(args) {
+        const { account_identifier, ...updates } = args as { account_identifier: string } & any;
+        const account = await accountRepository.findByIdentifier(account_identifier);
+        if (!account) {
+            throw new Error(`La cuenta '${account_identifier}' no existe.`);
+        }
+        const updated = await accountRepository.update(account.id, updates);
+        return {
+            content: [{ type: "text", text: `✅ Cuenta '${updated.name}' actualizada correctamente.` }]
+        };
+    },
+
+    async delete_account(args) {
+        const { account_identifier } = args as { account_identifier: string };
+        const account = await accountRepository.findByIdentifier(account_identifier);
+        if (!account) {
+            throw new Error(`La cuenta '${account_identifier}' no existe.`);
+        }
+        await accountRepository.delete(account.id);
+        return {
+            content: [{ type: "text", text: `✅ Cuenta '${account.name}' eliminada correctamente.` }]
+        };
     }
 };

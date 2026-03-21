@@ -1,25 +1,10 @@
-import { pool } from "../../../config/database.js";
+import { subscriptionRepository } from "../../../db/subscriptions.js";
 
 type HandlerFn = (args: Record<string, unknown>) => Promise<{ content: { type: string; text: string }[]; isError?: boolean }>;
-
-// Crea la tabla si no existe aún (idempotente)
-async function ensureTable() {
-    await pool.query(`
-        CREATE TABLE IF NOT EXISTS subscriptions (
-            id           SERIAL PRIMARY KEY,
-            name         TEXT NOT NULL,
-            amount       NUMERIC(12,2) NOT NULL,
-            billing_day  INT NOT NULL,
-            account_identifier TEXT,
-            created_at   TIMESTAMPTZ DEFAULT NOW()
-        )
-    `);
-}
 
 export const subscriptionHandlers: Record<string, HandlerFn> = {
 
     async add_subscription(args) {
-        await ensureTable();
         const { name, amount, billing_day, account_identifier } = args as {
             name: string;
             amount: number;
@@ -31,12 +16,13 @@ export const subscriptionHandlers: Record<string, HandlerFn> = {
             throw new Error("El día de cobro debe estar entre 1 y 31.");
         }
 
-        const res = await pool.query(
-            `INSERT INTO subscriptions (name, amount, billing_day, account_identifier)
-             VALUES ($1, $2, $3, $4) RETURNING *`,
-            [name, amount, billing_day, account_identifier ?? null]
-        );
-        const sub = res.rows[0];
+        const sub = await subscriptionRepository.create({
+            name,
+            amount,
+            billing_day,
+            account_identifier
+        });
+
         return {
             content: [{
                 type: "text",
@@ -46,30 +32,28 @@ export const subscriptionHandlers: Record<string, HandlerFn> = {
     },
 
     async list_subscriptions(_args) {
-        await ensureTable();
-        const res = await pool.query(`SELECT * FROM subscriptions ORDER BY billing_day ASC`);
-        if (!res.rows.length) {
+        const subs = await subscriptionRepository.getAll();
+        if (!subs.length) {
             return { content: [{ type: "text", text: "📋 No tienes suscripciones registradas aún." }] };
         }
-        const total = res.rows.reduce((sum: number, s: { amount: string }) => sum + parseFloat(s.amount), 0);
+        const total = subs.reduce((sum, s) => sum + parseFloat(s.amount as unknown as string), 0);
         return {
             content: [{
                 type: "text",
-                text: `📋 Suscripciones (${res.rows.length}):\n${JSON.stringify(res.rows, null, 2)}\n\n💰 Total mensual: $${total.toLocaleString("es-CO")}`
+                text: `📋 Suscripciones (${subs.length}):\n${JSON.stringify(subs, null, 2)}\n\n💰 Total mensual: $${total.toLocaleString("es-CO")}`
             }]
         };
     },
 
     async check_upcoming_bills(args) {
-        await ensureTable();
         const { days_ahead = 7 } = args as { days_ahead?: number };
 
         const today = new Date();
         const currentDay = today.getDate();
         const endDay = currentDay + (days_ahead as number);
 
-        const res = await pool.query(`SELECT * FROM subscriptions ORDER BY billing_day ASC`);
-        const upcoming = res.rows.filter((s: { billing_day: number }) =>
+        const subs = await subscriptionRepository.getAll();
+        const upcoming = subs.filter(s =>
             s.billing_day >= currentDay && s.billing_day <= endDay
         );
 
@@ -79,12 +63,31 @@ export const subscriptionHandlers: Record<string, HandlerFn> = {
             };
         }
 
-        const total = upcoming.reduce((sum: number, s: { amount: string }) => sum + parseFloat(s.amount), 0);
+        const total = upcoming.reduce((sum, s) => sum + parseFloat(s.amount as unknown as string), 0);
         return {
             content: [{
                 type: "text",
                 text: `⚠️ Cobros en los próximos ${days_ahead} días:\n${JSON.stringify(upcoming, null, 2)}\n\n💸 Total próximo: $${total.toLocaleString("es-CO")}`
             }]
+        };
+    },
+
+    async update_subscription(args) {
+        const { subscription_id, ...updates } = args as { subscription_id: number } & any;
+        const updated = await subscriptionRepository.update(subscription_id, updates);
+        if (!updated) {
+            throw new Error(`Suscripción con ID ${subscription_id} no encontrada.`);
+        }
+        return {
+            content: [{ type: "text", text: `✅ Suscripción '${updated.name}' actualizada correctamente.` }]
+        };
+    },
+
+    async delete_subscription(args) {
+        const { subscription_id } = args as { subscription_id: number };
+        await subscriptionRepository.delete(subscription_id);
+        return {
+            content: [{ type: "text", text: `✅ Suscripción con ID ${subscription_id} eliminada correctamente.` }]
         };
     }
 };

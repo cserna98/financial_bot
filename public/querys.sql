@@ -86,3 +86,8 @@ WHERE
 GROUP BY
     category
 ORDER BY total_gastado DESC;
+
+SELECT table_name 
+FROM information_schema.tables 
+WHERE table_schema = 'public'
+AND table_type = 'BASE TABLE';

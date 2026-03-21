@@ -34,8 +34,10 @@ export const coreHandlers: Record<string, HandlerFn> = {
                 content: [{ type: "text", text: `✅ Operación ejecutada con éxito.` }]
             };
         } catch (error: any) {
+            console.error("❌ ERROR EN run_sql_query:", error);
+            const errorMessage = error.message || JSON.stringify(error) || "Error desconocido";
             return {
-                content: [{ type: "text", text: `❌ Error SQL: ${error.message}` }],
+                content: [{ type: "text", text: `❌ Error SQL: ${errorMessage}` }],
                 isError: true
             };
         }

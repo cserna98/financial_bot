@@ -38,5 +38,31 @@ export const subscriptionTools: Tool[] = [
                 }
             }
         }
+    },
+    {
+        name: "update_subscription",
+        description: "Updates an existing subscription's details (name, amount, billing day, etc.).",
+        inputSchema: {
+            type: "object",
+            properties: {
+                subscription_id: { type: "number", description: "ID of the subscription to update" },
+                name: { type: "string" },
+                amount: { type: "number" },
+                billing_day: { type: "number", minimum: 1, maximum: 31 },
+                account_identifier: { type: "string" }
+            },
+            required: ["subscription_id"]
+        }
+    },
+    {
+        name: "delete_subscription",
+        description: "Permanently deletes a subscription from the database.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                subscription_id: { type: "number", description: "ID of the subscription to delete" }
+            },
+            required: ["subscription_id"]
+        }
     }
 ];
