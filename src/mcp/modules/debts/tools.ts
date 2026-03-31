@@ -14,7 +14,7 @@ export const debtTools: Tool[] = [
             properties: {
                 account_identifier: {
                     type: "string",
-                    description: "OPCIONAL. Alias de la cuenta o tarjeta usada (ej. 'mastercard'). Si no se proporciona, la deuda se registra sin afectar ninguna cuenta."
+                    description: "OPCIONAL. Nombre o Alias literal de la cuenta (ej. 'nomina', 'efectivo'). NO TRADUCIR. Si no se proporciona, la deuda se registra sin afectar ninguna cuenta."
                 },
                 lender: {
                     type: "string",
@@ -46,21 +46,17 @@ export const debtTools: Tool[] = [
     },
     {
         name: "pay_debt",
-        description: "Paga la cuota de una deuda. Si la deuda pertenece a una tarjeta de crédito, incluye el alias en destination_account_identifier para liberar el cupo.",
+        description: "Paga la cuota de una deuda, descontando de la cuenta de origen.",
         inputSchema: {
             type: "object",
             properties: {
                 source_account_identifier: {
                     type: "string",
-                    description: "Cuenta de donde sale el dinero (ej. 'nomina')"
+                    description: "Literal Name or Alias de la cuenta de origen (ej. 'nomina'). NO TRADUCIR."
                 },
                 debt_identifier: {
                     type: "string",
-                    description: "Nombre de la deuda (ej. 'iPhone')"
-                },
-                destination_account_identifier: {
-                    type: "string",
-                    description: "OPCIONAL. Alias de la tarjeta de crédito a la que se le libera cupo (ej. 'mastercard')"
+                    description: "Nombre EXACTO de la deuda como aparece en la DB (ej. 'Manuela'). NO añadir palabras como 'deuda con'."
                 },
                 amount: { type: "number" },
                 description: { type: "string" }

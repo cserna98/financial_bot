@@ -1,17 +1,17 @@
 import { accountRepository } from "../../../db/accounts.js";
 import { transactionRepository } from "../../../db/transactions.js";
+import { resolveCategory } from "../../../config/categories.js";
 
 type HandlerFn = (args: Record<string, unknown>) => Promise<{ content: { type: string; text: string }[]; isError?: boolean }>;
 
 export const transactionHandlers: Record<string, HandlerFn> = {
 
     async register_transaction(args) {
-        const { account_identifier, amount, description, category, category_id, event_id, event_name } = args as {
+        const { account_identifier, amount, description, category, event_id, event_name } = args as {
             account_identifier: string;
             amount: number;
-            description: string;
+            description?: string;
             category: string;
-            category_id?: number;
             event_id?: number;
             event_name?: string;
         };
@@ -24,10 +24,10 @@ export const transactionHandlers: Record<string, HandlerFn> = {
         }
         console.log(`✅ Cuenta encontrada: ID ${account.id} (${account.name})`);
 
-        // Ajuste automático de signo para gastos descriptivos
+        // Automatic sign adjustment for descriptive expenses
         let finalAmount = amount;
         const desc = (description || "").toLowerCase();
-        if (desc.includes("gast") || desc.includes("pagué") || category === "food") {
+        if (desc.includes("gast") || desc.includes("pagué") || category === "Food") {
             finalAmount = -Math.abs(amount);
         }
 
@@ -47,16 +47,24 @@ export const transactionHandlers: Record<string, HandlerFn> = {
             }
         }
 
-        // Construimos la category string enriquecida
-        let resolvedCategory = category;
-        if (category_id) resolvedCategory += ` [cat:${category_id}]`;
-        if (resolvedEventId) resolvedCategory += ` [event:${resolvedEventId}]`;
+        // Validar y resolver la categoría usando el estándar
+        const validatedCategory = resolveCategory(category);
+        
+        // Construimos la category string enriquecida con metadata de evento
+        let finalCategory = validatedCategory;
+        if (resolvedEventId) finalCategory += ` [event:${resolvedEventId}]`;
 
-        console.log(`📝 Insertando transacción en ID ${account.id} por ${finalAmount}${resolvedEventId ? ` (event_id: ${resolvedEventId})` : ""}...`);
-        await transactionRepository.create(account.id, finalAmount, description, resolvedCategory);
+        const finalDescription = description || "";
+
+        console.log(`📝 Insertando transacción en ID ${account.id} por ${finalAmount} | Cat: ${finalCategory}${resolvedEventId ? ` (event_id: ${resolvedEventId})` : ""}...`);
+        await transactionRepository.create(account.id, finalAmount, finalDescription, finalCategory);
+
+        const categoryNote = validatedCategory !== category 
+            ? ` (Categoría ajustada: '${category}' → '${validatedCategory}')` 
+            : "";
 
         return {
-            content: [{ type: "text", text: `✅ Transacción registrada correctamente en '${account.name}'.${eventWarning}` }]
+            content: [{ type: "text", text: `✅ Transacción registrada correctamente en '${account.name}'.${categoryNote}${eventWarning}` }]
         };
     },
 

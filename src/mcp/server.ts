@@ -10,6 +10,7 @@ import { debtHandlers } from "./modules/debts/handler.js";
 import { eventHandlers } from "./modules/events/handler.js";
 import { subscriptionHandlers } from "./modules/subscriptions/handler.js";
 import { coreHandlers } from "./modules/core/handler.js";
+import { reportHandlers } from "./modules/reports/handler.js";
 
 // ─── Master dispatcher ────────────────────────────────────────────────────────
 // Add any new module's handlers here; no switch/case ever needed again.
@@ -23,6 +24,7 @@ const allHandlers: Record<string, (args: Record<string, unknown>) => Promise<{
     ...eventHandlers,
     ...subscriptionHandlers,
     ...coreHandlers,
+    ...reportHandlers,
 };
 
 // ─── MCP Server ───────────────────────────────────────────────────────────────

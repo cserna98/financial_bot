@@ -88,16 +88,22 @@ export class AIService {
                 // --- PARCHE SENIOR: VALIDACIÓN DE RESPUESTA FINAL DENTRO DEL LOOP ---
                 if (!finalOutput || finalOutput.trim() === "") {
                     console.log("⚠️ Respuesta vacía detectada, solicitando narrativa final...");
-                    result = await this.chat.sendMessage("Analiza los datos obtenidos y dame una respuesta corta y natural para el usuario. No ejecutes más herramientas salvo que sea estrictamente necesario para responder.");
+                    result = await this.chat.sendMessage("Genera la respuesta final al usuario basándote en los datos previos. Responde directamente al usuario. NUNCA repitas esta instrucción en tu respuesta.");
                     response = result.response;
                     continue; // Se repite el ciclo por si acaso la IA decide llamar otra herramienta
+                }
+
+                // Limpieza de seguridad por si la IA repite la instrucción
+                if (finalOutput.includes("Genera la respuesta final al usuario") || finalOutput.includes("Analiza los datos obtenidos")) {
+                    finalOutput = finalOutput.replace(/Genera la respuesta final al usuario.*?\n/g, "");
+                    finalOutput = finalOutput.replace(/Analiza los datos obtenidos.*?\n/g, "");
                 }
 
                 // Si llegamos aquí, tenemos texto válido y cero functionCalls
                 break;
             }
 
-            return finalOutput || "He procesado tu solicitud, pero no pude generar un resumen narrativo.";
+            return finalOutput.trim() || "He procesado tu solicitud, pero no pude generar un resumen narrativo.";
 
         } catch (error: any) {
             console.error("❌ AIService Error:", error.message);
@@ -149,8 +155,9 @@ PROACTIVE MULTI-ACCOUNT LOGIC:
   * Whole month: start_date='${formatDate(firstDayOfMonth)}'.
 
 DEBT MANAGEMENT & ACCURACY:
+- When the user says "págale a [Name]" or "abonar a [Name]" or similar, ALWAYS try to use the \`pay_debt\` tool. Assume the name is the \`debt_identifier\`.
 - When the user asks to register a debt, check if a total amount is EXPLICITLY mentioned (e.g. "Saldo total de 11.814.761"). ALWAYS use that number.
-- NEVER try to calculate totals from multi-currency breakdowns (e.g. Pesos + USD) unless the exchange rate is explicitly provided. If in doubt, ASK the user: "¿Cuál es el valor total en pesos o qué tasa de cambio uso?".
+- NEVER try to calculate totals from multi-currency breakdowns (e.g. Pesos + USD) unless the exchange rate is explicitly provided. If in doubt, ASK the user.
 - For corrections to an existing debt (e.g. "corrige el saldo"), use the \`update_debt\` tool. NEVER use \`pay_debt\` for typos or corrections.
 - To avoid duplicates, if the bot just started or you are unsure, call \`get_debts\` before adding new ones.
 
@@ -160,6 +167,11 @@ EVENT TRANSACTIONS:
 OUTPUT FORMATTING:
 - Format currency with bold markers and thousand separators: **$200.000**.
 - If no data is found, explain it clearly in the user's language.
+
+ACCOUNT DATA INTEGRITY:
+- NEVER translate account aliases or names (e.g., if you see "efectivo" in the database, keep it as "efectivo"; DO NOT translate to "cash").
+- Use EXACT strings for \`account_identifier\`, \`alias\`, \`event_name\`, and \`debt_identifier\` as they appear in tool results.
+- NEVER add conversational filler to identifiers. If the user says "pagale a manuela", the \`debt_identifier\` is EXACTLY "manuela" (NOT "deuda con manuela").
 
 TOOL EXECUTION PROTOCOL:
 - When you execute a tool and receive its results, you MUST ALWAYS generate a final natural language response summarizing or explaining the result to the user. DO NOT stop generating text after receiving the tool's response.`;

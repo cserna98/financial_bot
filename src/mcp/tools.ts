@@ -6,6 +6,7 @@ import { debtTools } from "./modules/debts/tools.js";
 import { eventTools } from "./modules/events/tools.js";
 import { subscriptionTools } from "./modules/subscriptions/tools.js";
 import { coreTools } from "./modules/core/tools.js";
+import { reportTools } from "./modules/reports/tools.js";
 
 export const tools: Tool[] = [
     ...accountTools,
@@ -14,4 +15,5 @@ export const tools: Tool[] = [
     ...eventTools,
     ...subscriptionTools,
     ...coreTools,
+    ...reportTools,
 ];

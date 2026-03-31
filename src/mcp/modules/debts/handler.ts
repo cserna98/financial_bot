@@ -94,10 +94,9 @@ export const debtHandlers: Record<string, HandlerFn> = {
     },
 
     async pay_debt(args) {
-        const { source_account_identifier, debt_identifier, destination_account_identifier, amount, description } = args as {
+        const { source_account_identifier, debt_identifier, amount, description } = args as {
             source_account_identifier: string;
             debt_identifier: string;
-            destination_account_identifier?: string;
             amount: number;
             description?: string;
         };
@@ -114,33 +113,12 @@ export const debtHandlers: Record<string, HandlerFn> = {
         }
 
         // 1. Descuenta plata de la cuenta origen y actualiza el saldo de la deuda
-        await transactionRepository.payDebt(sourceAccount.id, debt.id, amount, description || "Pago de cuota");
-
-        // 2. Si se indica una tarjeta de destino, le liberamos el cupo
-        if (destination_account_identifier) {
-            const destAccount = await accountRepository.findByIdentifier(destination_account_identifier);
-            if (destAccount) {
-                await transactionRepository.create(
-                    destAccount.id,
-                    Math.abs(amount),
-                    `Abono de cuota: ${debt.lender}`,
-                    "debt_payment_received"
-                );
-            }
-        } else if (debt.account_id) {
-            // Fallback automático: si la deuda tiene una tarjeta enlazada, liberamos cupo automáticamente
-            await transactionRepository.create(
-                debt.account_id,
-                Math.abs(amount),
-                `Abono automático de cuota: ${debt.lender}`,
-                "debt_payment_received"
-            );
-        }
+        await transactionRepository.payDebt(sourceAccount.id, amount, debt.id, description || "Pago de cuota");
 
         return {
             content: [{
                 type: "text",
-                text: `✅ Pago de $${amount} aplicado a la deuda '${debt.lender}'. Saldo actualizado correctamente en tus cuentas.`
+                text: `✅ Pago de $${amount} aplicado a la deuda '${debt.lender}'. Saldo actualizado correctamente en la cuenta de origen.`
             }]
         };
     },

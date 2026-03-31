@@ -21,3 +21,19 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Temporary and local scripts
+tmp/
+analyze_transactions.ts
+migrate_categories.ts
+transactions_full.json
+
+# Credentials and sensitive data
+financialbot-*.json
+
+# JSON normalization (ignore most, unignore specific config)
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!*.example.json

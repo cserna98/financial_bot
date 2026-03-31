@@ -21,13 +21,23 @@ export const accountRepository = {
     const cleanId = id.trim();
     const query = `
       SELECT * FROM accounts 
-      WHERE alias ILIKE $1 
-         OR name ILIKE $1 
-         OR account_number = $2
+      WHERE translate(alias, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU') ILIKE translate($1, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU')
+         OR translate(name, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU') ILIKE translate($1, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU')
+         OR translate(alias, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU') ILIKE translate($2, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU')
+         OR translate(name, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU') ILIKE translate($2, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU')
+         OR account_number = $3
+      ORDER BY 
+         CASE WHEN translate(alias, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU') ILIKE translate($2, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU') THEN 1
+              WHEN translate(name, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU') ILIKE translate($2, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU') THEN 2
+              WHEN translate(alias, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU') ILIKE translate($1, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU') THEN 3
+              WHEN translate(name, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU') ILIKE translate($1, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU') THEN 4
+              ELSE 5 END
       LIMIT 1
     `;
-    // Usamos % solo para alias y nombre. Para número de cuenta buscamos exacto.
-    const res = await pool.query(query, [`%${cleanId}%`, cleanId]);
+    // $1 = Búsqueda parcial (%texto%)
+    // $2 = Búsqueda exacta (texto)
+    // $3 = Búsqueda exacta número
+    const res = await pool.query(query, [`%${cleanId}%`, cleanId, cleanId]);
     return res.rows[0] as Account | undefined;
   }, // <--- Coma agregada
 
@@ -35,11 +45,17 @@ export const accountRepository = {
   async create(name: string, type: string, balance: number, alias?: string, accountNumber?: string) {
     const client = await pool.connect();
     try {
-      // Verificar si el alias ya existe antes de intentar crearla
       if (alias) {
         const existing = await this.findByIdentifier(alias);
         if (existing) {
-          throw new Error(`El alias '${alias}' ya está en uso por la cuenta '${existing.name}'.`);
+          const isExact = existing.alias?.toLowerCase() === alias.toLowerCase() || 
+                          existing.name.toLowerCase() === alias.toLowerCase();
+          
+          if (isExact) {
+            throw new Error(`El alias '${alias}' ya está en uso exacto por la cuenta '${existing.name}'.`);
+          } else {
+            throw new Error(`El alias '${alias}' es muy similar al existente '${existing.alias ?? existing.name}'. Para evitar confusiones, te sugiero usar uno más diferente.`);
+          }
         }
       }
 

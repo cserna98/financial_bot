@@ -1,4 +1,5 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { getCategoryEnumDescription, ALL_CATEGORIES } from "../../../config/categories.js";
 
 export const transactionTools: Tool[] = [
     {
@@ -9,31 +10,31 @@ export const transactionTools: Tool[] = [
             properties: {
                 account_identifier: {
                     type: "string",
-                    description: "Name, alias (e.g., 'nomina'), or account number"
+                    description: "Literal Name or Alias (e.g., 'nomina', 'efectivo'). DO NOT TRANSLATE TO ENGLISH."
                 },
                 amount: {
                     type: "number",
                     description: "Amount (positive for income, negative for expense)"
                 },
-                description: { type: "string" },
+                description: {
+                    type: "string",
+                    description: "Optional: Descripción libre del gasto (ej. 'Almuerzo con Juan', 'Tanqueada moto')"
+                },
                 category: {
                     type: "string",
-                    description: "e.g., 'salary', 'food', 'concert', 'leisure'"
-                },
-                category_id: {
-                    type: "number",
-                    description: "Optional: ID of a predefined category"
+                    description: getCategoryEnumDescription(),
+                    enum: [...ALL_CATEGORIES]
                 },
                 event_name: {
                     type: "string",
-                    description: "Optional: Nombre del evento al que pertenece este gasto (ej. 'Asado Fin de Semana'). Usa esto en lugar de event_id si conoces el nombre."
+                    description: "Optional: Nombre del evento al que pertenece este gasto (ej. 'Asado Fin de Semana', 'Viaje Costa'). Usa esto para vincular el gasto a un evento/viaje."
                 },
                 event_id: {
                     type: "number",
                     description: "Optional: ID of an event this transaction belongs to"
                 }
             },
-            required: ["account_identifier", "amount", "description", "category"]
+            required: ["account_identifier", "amount", "category"]
         }
     },
     {
@@ -44,7 +45,7 @@ export const transactionTools: Tool[] = [
             properties: {
                 account_identifier: {
                     type: "string",
-                    description: "Alias, name, or account number of the account"
+                    description: "Literal Alias, name, or account number. NO TRADUCIR."
                 },
                 limit: {
                     type: "number",
@@ -62,7 +63,7 @@ export const transactionTools: Tool[] = [
             properties: {
                 account_identifier: {
                     type: "string",
-                    description: "Opcional: Alias o nombre de la cuenta"
+                    description: "Opcional: Alias o nombre literal de la cuenta. NO TRADUCIR."
                 },
                 start_date: {
                     type: "string",

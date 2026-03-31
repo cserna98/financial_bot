@@ -19,9 +19,16 @@ export const transactionRepository = {
         try {
             await client.query('BEGIN');
 
+            // 1. Insertar la transacción
             const res = await client.query(
                 'INSERT INTO transactions (account_id, amount, description, category) VALUES ($1, $2, $3, $4) RETURNING *',
                 [accountId, amount, description, category]
+            );
+
+            // 2. Actualizar el saldo de la cuenta
+            await client.query(
+                'UPDATE accounts SET balance = balance + $1 WHERE id = $2',
+                [amount, accountId]
             );
 
             await client.query('COMMIT');
@@ -49,19 +56,29 @@ export const transactionRepository = {
         try {
             await client.query('BEGIN');
 
+            console.log(`💳 [payDebt] accountId=${accountId}, amount=${amount}, debtId=${debtId}`);
+
             // Insertar la transacción
             const transRes = await client.query(
                 'INSERT INTO transactions (account_id, amount, description, category) VALUES ($1, $2, $3, $4) RETURNING id',
                 [accountId, -amount, description, 'pago_deuda']
             );
 
-            // Actualizar la deuda vinculada a debtId
-            await client.query(
+            // 2. Actualizar la deuda vinculada a debtId
+            const updateRes = await client.query(
                 `UPDATE debts SET remaining_amount = remaining_amount - $1, 
                 paid_installments = paid_installments + 1 
-                WHERE id = $2`,
+                WHERE id = $2 RETURNING id, remaining_amount`,
                 [amount, debtId]
             );
+
+            // 3. Actualizar el saldo de la cuenta (RESTAR el pago)
+            await client.query(
+                'UPDATE accounts SET balance = balance - $1 WHERE id = $2',
+                [amount, accountId]
+            );
+
+            console.log(`💳 [payDebt] UPDATE result: rowCount=${updateRes.rowCount}, rows=${JSON.stringify(updateRes.rows)}`);
 
             await client.query('COMMIT');
             return transRes.rows[0];
@@ -128,24 +145,73 @@ export const transactionRepository = {
 
     // 5. Actualizar transacción
     async update(id: number, updates: Partial<Transaction>) {
-        const fields = Object.keys(updates).filter(k => k !== 'id');
-        if (fields.length === 0) {
-            const res = await pool.query('SELECT * FROM transactions WHERE id = $1', [id]);
-            return res.rows[0];
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+
+            // 1. Obtener los datos antiguos para calcular el ajuste de balance
+            const oldRes = await client.query('SELECT * FROM transactions WHERE id = $1', [id]);
+            if (oldRes.rows.length === 0) return null;
+            const oldTx = oldRes.rows[0];
+
+            // 2. Ejecutar el update
+            const fields = Object.keys(updates).filter(k => k !== 'id');
+            if (fields.length === 0) {
+                await client.query('COMMIT');
+                return oldTx;
+            }
+
+            const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
+            const values = fields.map(f => (updates as any)[f]);
+
+            const res = await client.query(
+                `UPDATE transactions SET ${setClause} WHERE id = $1 RETURNING *`,
+                [id, ...values]
+            );
+            const newTx = res.rows[0];
+
+            // 3. Si el monto cambió, ajustar el balance de la cuenta
+            if (updates.amount !== undefined && updates.amount !== oldTx.amount) {
+                const diff = updates.amount - oldTx.amount;
+                await client.query(
+                    'UPDATE accounts SET balance = balance + $1 WHERE id = $2',
+                    [diff, oldTx.account_id]
+                );
+            }
+
+            await client.query('COMMIT');
+            return newTx;
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
         }
-
-        const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
-        const values = fields.map(f => (updates as any)[f]);
-
-        const res = await pool.query(
-            `UPDATE transactions SET ${setClause} WHERE id = $1 RETURNING *`,
-            [id, ...values]
-        );
-        return res.rows[0];
     },
 
     // 6. Eliminar transacción
     async delete(id: number) {
-        await pool.query('DELETE FROM transactions WHERE id = $1', [id]);
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+
+            const res = await client.query('SELECT * FROM transactions WHERE id = $1', [id]);
+            if (res.rows.length > 0) {
+                const tx = res.rows[0];
+                // Revertir el balance: si era un gasto (-50), sumamos 50 (+50). balance = balance - (-50)
+                await client.query(
+                    'UPDATE accounts SET balance = balance - $1 WHERE id = $2',
+                    [tx.amount, tx.account_id]
+                );
+                await client.query('DELETE FROM transactions WHERE id = $1', [id]);
+            }
+
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
     }
 };
