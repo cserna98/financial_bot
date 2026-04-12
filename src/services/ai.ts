@@ -4,18 +4,23 @@ import 'dotenv/config';
 
 export class AIService {
     private model: any;
-    private chat: ChatSession;
+    private chat: any;
+    private lastInitDate: string = "";
+    private genAI: GoogleGenerativeAI;
 
-    constructor(private mcpClient: Client, tools: any[]) {
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    constructor(private mcpClient: Client, private tools: any[]) {
+        this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+        this.initializeModel();
+    }
 
-        // Generamos la instrucción del sistema con la fecha actual dinámica
+    private initializeModel() {
+        this.lastInitDate = new Date().toISOString().split('T')[0];
         const systemInstruction = this.getSystemInstruction();
 
-        this.model = genAI.getGenerativeModel({
+        this.model = this.genAI.getGenerativeModel({
             model: "gemini-2.5-flash-lite", // Revertido al modelo original
             tools: [{
-                functionDeclarations: tools.map(t => ({
+                functionDeclarations: this.tools.map(t => ({
                     name: t.name,
                     description: t.description,
                     parameters: t.inputSchema as any
@@ -25,10 +30,18 @@ export class AIService {
         });
 
         this.chat = this.model.startChat();
+        console.log(`🧠 Cerebro de IA inicializado con fecha focal: ${this.lastInitDate}`);
     }
 
     async processMessage(userInput: string) {
         try {
+            // Verificar si la fecha ha cambiado para refrescar el contexto temporal
+            const currentDate = new Date().toISOString().split('T')[0];
+            if (currentDate !== this.lastInitDate) {
+                console.log("📅 Cambio de fecha detectado, refrescando contexto de IA...");
+                this.initializeModel();
+            }
+
             let result = await this.chat.sendMessage(userInput);
             let response = result.response;
             let finalOutput = "";
@@ -154,12 +167,14 @@ PROACTIVE MULTI-ACCOUNT LOGIC:
   * Specific day (e.g. March 18): start_date='2026-03-18', end_date='2026-03-18'.
   * Whole month: start_date='${formatDate(firstDayOfMonth)}'.
 
-DEBT MANAGEMENT & ACCURACY:
-- When the user says "págale a [Name]" or "abonar a [Name]" or similar, ALWAYS try to use the \`pay_debt\` tool. Assume the name is the \`debt_identifier\`.
-- When the user asks to register a debt, check if a total amount is EXPLICITLY mentioned (e.g. "Saldo total de 11.814.761"). ALWAYS use that number.
-- NEVER try to calculate totals from multi-currency breakdowns (e.g. Pesos + USD) unless the exchange rate is explicitly provided. If in doubt, ASK the user.
-- For corrections to an existing debt (e.g. "corrige el saldo"), use the \`update_debt\` tool. NEVER use \`pay_debt\` for typos or corrections.
-- To avoid duplicates, if the bot just started or you are unsure, call \`get_debts\` before adding new ones.
+DEBT & CREDIT CARD MANAGEMENT:
+- When the user says "págale a [Name]" or "abonar a [Name]", ALWAYS use the pay_debt tool.
+- CREDIT CARDS:
+  * For NEW PURCHASES on a credit card (e.g., "compré un TV con la Visa"), use the register_card_purchase tool.
+  * ALWAYS ask for the number of installments (cuotas) and interest rate if not provided for credit card purchases.
+  * For GENERAL PAYMENTS to a card (e.g., "pagué 1M a la Mastercard"), use pay_debt. The system will automatically distribute the payment among purchases.
+- PERSONAL LOANS: For simple debts without individual purchases, use create_debt.
+- To avoid duplicates, call get_debts before adding new ones.
 
 EVENT TRANSACTIONS:
 - When a user asks to register an expense or income FOR AN EVENT (e.g. "para el evento Asado"), you MUST use the \`event_name\` parameter in the \`register_transaction\` tool. DO NOT just put the event name in the \`description\` field.

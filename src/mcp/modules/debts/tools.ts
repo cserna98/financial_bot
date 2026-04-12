@@ -65,6 +65,36 @@ export const debtTools: Tool[] = [
         }
     },
     {
+        name: "register_card_purchase",
+        description: "Registra una compra específica en una tarjeta de crédito ya existente. Esto permite trackear cuotas e intereses por cada compra dentro de la tarjeta.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                card_name: {
+                    type: "string",
+                    description: "Nombre o Alias de la tarjeta de crédito en la base de datos (ej. 'Mastercard', 'Visa')."
+                },
+                description: {
+                    type: "string",
+                    description: "Qué se compró (ej. 'Televisor', 'Tiquetes')."
+                },
+                amount: {
+                    type: "number",
+                    description: "Monto de la compra."
+                },
+                installments: {
+                    type: "number",
+                    description: "Número de cuotas de esta compra."
+                },
+                interest_rate: {
+                    type: "number",
+                    description: "Tasa de interés mensual (ej. 2.5)."
+                }
+            },
+            required: ["card_name", "description", "amount", "installments"]
+        }
+    },
+    {
         name: "update_debt",
         description: "Actualiza los valores de una deuda existente (monto total, monto restante, etc.). Úsalo para corregir errores o typos sin generar transacciones bancarias.",
         inputSchema: {

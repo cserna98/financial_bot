@@ -1,6 +1,7 @@
 import { accountRepository } from "../../../db/accounts.js";
 import { transactionRepository } from "../../../db/transactions.js";
 import { debtRepository } from "../../../db/debts.js";
+import { creditCardRepository } from "../../../db/credit_cards.js";
 
 type HandlerFn = (args: Record<string, unknown>) => Promise<{ content: { type: string; text: string }[]; isError?: boolean }>;
 
@@ -112,13 +113,21 @@ export const debtHandlers: Record<string, HandlerFn> = {
             throw new Error(`Deuda '${debt_identifier}' no encontrada en la base de datos.`);
         }
 
-        // 1. Descuenta plata de la cuenta origen y actualiza el saldo de la deuda
-        await transactionRepository.payDebt(sourceAccount.id, amount, debt.id, description || "Pago de cuota");
+        console.log(`💳 Procesando pago para '${debt.lender}' (Tipo: ${debt.type})`);
+
+        // 1. Descuenta plata de la cuenta origen
+        await transactionRepository.payDebt(sourceAccount.id, amount, debt.id, description || `Pago a ${debt.lender}`);
+
+        // 2. Si es tarjeta de crédito, aplicamos el pago en cascada a sus compras
+        if (debt.type === 'credit_card') {
+            console.log(`📉 Aplicando pago en cascada a compras de '${debt.lender}'...`);
+            await creditCardRepository.applyPaymentToPurchases(debt.id, amount);
+        }
 
         return {
             content: [{
                 type: "text",
-                text: `✅ Pago de $${amount} aplicado a la deuda '${debt.lender}'. Saldo actualizado correctamente en la cuenta de origen.`
+                text: `✅ Pago de $${amount} aplicado a la deuda '${debt.lender}'. Saldo actualizado correctamente en la cuenta de origen.${debt.type === 'credit_card' ? ' El pago se distribuyó entre las compras pendientes.' : ''}`
             }]
         };
     },
@@ -140,6 +149,40 @@ export const debtHandlers: Record<string, HandlerFn> = {
         const updated = await debtRepository.update(debt.id, updates);
         return {
             content: [{ type: "text", text: `✅ Deuda '${updated.lender}' actualizada correctamente.` }]
+        };
+    },
+
+    async register_card_purchase(args) {
+        const { card_name, amount, description, installments, interest_rate = 0 } = args as {
+            card_name: string;
+            amount: number;
+            description: string;
+            installments: number;
+            interest_rate?: number;
+        };
+
+        // 1. Buscar la tarjeta (la deuda padre)
+        const debt = await debtRepository.findByLender(card_name);
+        if (!debt) {
+            throw new Error(`No se encontró la tarjeta '${card_name}'. Asegúrate de que esté creada como una deuda tipo 'credit_card'.`);
+        }
+
+        if (debt.type !== 'credit_card') {
+            throw new Error(`'${card_name}' no es una tarjeta de crédito (es tipo ${debt.type}). Solo puedes registrar compras en una tarjeta.`);
+        }
+
+        // 2. Registrar la compra individual
+        await creditCardRepository.createPurchase({
+            debt_id: debt.id,
+            description,
+            total_amount: amount,
+            remaining_amount: amount,
+            interest_rate,
+            total_installments: installments
+        });
+
+        return {
+            content: [{ type: "text", text: `✅ Compra de '${description}' por $${amount} registrada en '${card_name}' a ${installments} cuotas.` }]
         };
     },
 
